@@ -162,6 +162,16 @@ export const initializeDatabase = async (): Promise<Db> => {
       await db.collection('seedPosts').createIndex({ seedAccountId: 1, postedAt: -1 });
       await db.collection('seedPosts').createIndex({ status: 1 });
 
+      // Lead Candidates Indexes
+      await db.collection('leadCandidates').createIndex({ username: 1 }, { unique: true });
+      await db.collection('leadCandidates').createIndex(
+        { instagramUserId: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { instagramUserId: { $type: 'string' } },
+        }
+      );
+
       // Idempotent Seed
       const accountsCollection = db.collection('accounts');
       for (const acc of initialAccounts) {

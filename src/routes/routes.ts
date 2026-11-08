@@ -11,6 +11,7 @@ import { driveAutomationRouter, internalDriveAutomationRouter } from '../modules
 import leadRouter, { internalLeadRouter } from '../modules/lead/lead.route';
 import seedAccountRouter, { internalSeedAccountRouter } from '../modules/seedAccount/seedAccount.route';
 import { internalSeedPostRouter } from '../modules/seedPost/seedPost.route';
+import internalLeadCandidateRouter from '../modules/leadCandidate/leadCandidate.route';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/internal/leads', internalLeadRouter);
 router.use('/lead-seeds', seedAccountRouter);
 router.use('/internal/lead-seeds', internalSeedAccountRouter);
 router.use('/internal/seed-posts', internalSeedPostRouter);
+router.use('/internal/lead-candidates', internalLeadCandidateRouter);
 
 export default router;
