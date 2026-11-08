@@ -17,6 +17,14 @@ const parseValidDate = (dateVal?: string | Date): Date | undefined => {
   return isNaN(parsed.getTime()) ? undefined : parsed;
 };
 
+const parseValidLikeCount = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+
+  return Math.floor(value);
+};
+
 /**
  * Helper to resolve a seed post by its MongoDB ObjectId or Instagram shortcode.
  */
@@ -60,6 +68,7 @@ export const evaluateAndSyncSeedPosts = async (
       0,
       Math.floor(Number(postInput.currentCommentCount) || 0)
     );
+    const incomingLikeCount = parseValidLikeCount(postInput.currentLikeCount);
     const now = new Date();
 
     const existing = await collection.findOne({ shortcode });
@@ -78,6 +87,9 @@ export const evaluateAndSyncSeedPosts = async (
         seedAccountId,
         seedUsername: (postInput.seedUsername || '').toLowerCase().trim(),
         currentCommentCount: incomingCount,
+        ...(incomingLikeCount !== undefined
+          ? { currentLikeCount: incomingLikeCount }
+          : {}),
         lastScannedCommentCount: 0,
         scanCount: 0,
         firstSeenAt: now,
@@ -134,6 +146,9 @@ export const evaluateAndSyncSeedPosts = async (
 
       if (postInput.caption !== undefined) updateDoc.caption = postInput.caption.trim();
       if (postInput.mediaType !== undefined) updateDoc.mediaType = postInput.mediaType;
+      if (incomingLikeCount !== undefined) {
+        updateDoc.currentLikeCount = incomingLikeCount;
+      }
       if (postInput.postedAt !== undefined) {
         const validPostedAt = parseValidDate(postInput.postedAt);
         if (validPostedAt) updateDoc.postedAt = validPostedAt;
@@ -181,6 +196,9 @@ export const evaluateAndSyncSeedPosts = async (
 
       if (postInput.caption !== undefined) updateDoc.caption = postInput.caption.trim();
       if (postInput.mediaType !== undefined) updateDoc.mediaType = postInput.mediaType;
+      if (incomingLikeCount !== undefined) {
+        updateDoc.currentLikeCount = incomingLikeCount;
+      }
 
       await collection.updateOne({ _id: existing._id }, { $set: updateDoc });
 

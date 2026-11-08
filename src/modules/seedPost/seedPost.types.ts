@@ -28,6 +28,7 @@ export interface SeedPost {
 
   // Engagement
   currentCommentCount: number;
+  currentLikeCount?: number;
   lastScannedCommentCount: number;
   scanCount: number;
 
@@ -54,6 +55,7 @@ export interface SeedPostMetadataInput {
   caption?: string;
   postedAt?: string | Date;
   currentCommentCount: number;
+  currentLikeCount?: number;
 }
 
 export interface EvaluateSeedPostsBatchInput {
