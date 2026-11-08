@@ -11,10 +11,7 @@ export interface LeadCandidate {
   profilePicUrl?: string;
   isVerified?: boolean;
 
-  observedCommentCount: number;
-  sourcePostIds: string[];
   sourceSeedAccountIds: string[];
-  sourceSeedUsernames: string[];
 
   firstSeenAt: Date;
   lastSeenAt: Date;
@@ -50,11 +47,7 @@ export interface DiscoveredLeadCandidateInput {
   commenterInstagramId?: string;
   commenterProfilePicUrl?: string;
   commenterIsVerified?: boolean;
-  observedCommentCount: number;
-  sourcePostIds: string[];
   sourceSeedAccountIds: string[];
-  sourceSeedUsernames: string[];
-  latestCommentedAt?: string;
 }
 
 export interface LeadCandidateEnrichmentInput {

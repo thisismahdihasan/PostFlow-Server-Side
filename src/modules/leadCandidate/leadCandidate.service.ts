@@ -14,23 +14,18 @@ const ENRICHMENT_RETRY_DELAY_MS = 24 * 60 * 60 * 1000;
 
 const normalizeUsername = (username: string): string => username.trim().toLowerCase();
 
-const normalizeStringArray = (values: unknown, lowercase = false): string[] => {
+const normalizeStringArray = (values: unknown): string[] => {
   if (!Array.isArray(values)) return [];
 
   return Array.from(
     new Set(
       values
         .filter((value): value is string => typeof value === 'string')
-        .map((value) => (lowercase ? value.trim().toLowerCase() : value.trim()))
+        .map((value) => value.trim())
         .filter(Boolean)
     )
   );
 };
-
-const normalizeCommentCount = (value: unknown): number =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
-    : 0;
 
 const toEnrichmentNeeded = (candidate: LeadCandidate): EnrichmentNeededLeadCandidate => ({
   leadCandidateId: candidate._id!.toString(),
@@ -81,10 +76,7 @@ export const discoverLeadCandidates = async (
       typeof input.commenterInstagramId === 'string' && input.commenterInstagramId.trim()
         ? input.commenterInstagramId.trim()
         : undefined;
-    const sourcePostIds = normalizeStringArray(input.sourcePostIds);
     const sourceSeedAccountIds = normalizeStringArray(input.sourceSeedAccountIds);
-    const sourceSeedUsernames = normalizeStringArray(input.sourceSeedUsernames, true);
-    const observedCommentCount = normalizeCommentCount(input.observedCommentCount);
     const now = new Date();
 
     let existing = await findCandidate(username, instagramUserId);
@@ -100,10 +92,7 @@ export const discoverLeadCandidates = async (
         ...(typeof input.commenterIsVerified === 'boolean'
           ? { isVerified: input.commenterIsVerified }
           : {}),
-        observedCommentCount,
-        sourcePostIds,
         sourceSeedAccountIds,
-        sourceSeedUsernames,
         firstSeenAt: now,
         lastSeenAt: now,
         enrichmentStatus: 'pending',
@@ -131,12 +120,8 @@ export const discoverLeadCandidates = async (
         username,
         lastSeenAt: now,
         updatedAt: now,
-        sourcePostIds: Array.from(new Set([...existing.sourcePostIds, ...sourcePostIds])),
         sourceSeedAccountIds: Array.from(
           new Set([...existing.sourceSeedAccountIds, ...sourceSeedAccountIds])
-        ),
-        sourceSeedUsernames: Array.from(
-          new Set([...existing.sourceSeedUsernames, ...sourceSeedUsernames])
         ),
       };
 
@@ -152,14 +137,12 @@ export const discoverLeadCandidates = async (
         { _id: existing._id },
         {
           $set: updateDoc,
-          $inc: { observedCommentCount },
         }
       );
 
       const updatedCandidate: LeadCandidate = {
         ...existing,
         ...updateDoc,
-        observedCommentCount: existing.observedCommentCount + observedCommentCount,
       };
 
       updatedCount++;
