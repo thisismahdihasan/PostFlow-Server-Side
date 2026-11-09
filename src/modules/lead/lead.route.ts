@@ -4,6 +4,7 @@ import { verifyInternalApiKey } from '../../middleware/internalAuth.middleware';
 import {
   getQuotaSummary,
   getVisibleLeads,
+  updateLeadStatus,
   assignLeads,
   getAllAssignments,
   internalGetQuotaSummary,
@@ -16,6 +17,7 @@ const router = Router();
 // User / Worker / Admin routes (authenticated)
 router.get('/quota-summary', verifyFirebaseToken, getQuotaSummary);
 router.get('/visible', verifyFirebaseToken, getVisibleLeads);
+router.patch('/:assignmentId/status', verifyFirebaseToken, updateLeadStatus);
 router.get('/all', verifyFirebaseToken, getAllAssignments);
 router.post('/assign', verifyFirebaseToken, assignLeads);
 

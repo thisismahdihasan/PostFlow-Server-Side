@@ -134,11 +134,51 @@ export const getWorkerVisibleLeads = async (
     .find({
       targetAccountId: account._id!,
       assignedDate,
+      status: 'pending',
       isReserve: { $ne: true }, // NEVER return reserve leads
       availableAt: { $lte: currentTime }, // ONLY availableAt <= currentTime
     })
     .sort({ availableAt: 1, batchIndex: 1, createdAt: 1 })
     .toArray();
+};
+
+/** Process one released assignment without changing its quota or release slot. */
+export const updateWorkerLeadStatus = async (params: {
+  assignmentId: string;
+  accountIdOrSlug: string;
+  assignedDate: string;
+  status: 'followed' | 'skipped';
+}): Promise<LeadAssignment> => {
+  const account = await resolveAccount(params.accountIdOrSlug);
+  if (!account) {
+    throw Object.assign(new Error(`Account not found: ${params.accountIdOrSlug}`), { statusCode: 404 });
+  }
+
+  const now = new Date();
+  const collection = getCollection();
+  const eligibleAssignment = {
+    _id: new ObjectId(params.assignmentId),
+    targetAccountId: account._id!,
+    assignedDate: params.assignedDate,
+    isReserve: { $ne: true },
+    availableAt: { $lte: now },
+  };
+
+  const updated = await collection.findOneAndUpdate(
+    { ...eligibleAssignment, status: 'pending' },
+    { $set: { status: params.status, updatedAt: now } },
+    { returnDocument: 'after' }
+  );
+  if (updated) return updated;
+
+  // The same guards prevent retry handling from exposing locked or unrelated leads.
+  const existing = await collection.findOne(eligibleAssignment);
+  if (!existing) {
+    throw Object.assign(new Error('Lead assignment not found or unavailable'), { statusCode: 404 });
+  }
+  if (existing.status === params.status) return existing;
+
+  throw Object.assign(new Error('Lead assignment status conflicts with the requested action'), { statusCode: 409 });
 };
 
 /**

@@ -1,9 +1,16 @@
 import { Request, Response } from 'express';
+import { ObjectId } from 'mongodb';
 import catchAsync from '../../utils/catchAsync';
 import * as leadService from './lead.service';
 import * as userService from '../user/user.service';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const isValidLeadDate = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !DATE_REGEX.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
 
 const checkApprovedUser = async (uid: string) => {
   const user = await userService.findUserByFirebaseUid(uid);
@@ -49,14 +56,13 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
   const user = await checkApprovedUser(uid);
   if (!user) return res.status(403).json({ message: 'Forbidden' });
 
-  const account = (req.query.account as string) || '';
-  const date = (req.query.date as string) || '';
+  const { account, date } = req.query;
 
-  if (!account.trim()) {
+  if (typeof account !== 'string' || !account.trim()) {
     return res.status(400).json({ message: 'query param account is required' });
   }
 
-  if (!DATE_REGEX.test(date)) {
+  if (!isValidLeadDate(date)) {
     return res.status(400).json({ message: 'query param date is required in YYYY-MM-DD format' });
   }
 
@@ -74,6 +80,38 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
     }
     throw err;
   }
+});
+
+export const updateLeadStatus = catchAsync(async (req: Request, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized' });
+
+  const user = await checkApprovedUser(uid);
+  if (!user) return res.status(403).json({ message: 'Forbidden' });
+
+  const { assignmentId } = req.params;
+  const { account, date, status } = req.body || {};
+
+  if (typeof assignmentId !== 'string' || !ObjectId.isValid(assignmentId)) {
+    return res.status(400).json({ message: 'Valid assignmentId is required' });
+  }
+  if (typeof account !== 'string' || !account.trim()) {
+    return res.status(400).json({ message: 'account is required' });
+  }
+  if (!isValidLeadDate(date)) {
+    return res.status(400).json({ message: 'date must be a valid date in YYYY-MM-DD format' });
+  }
+  if (status !== 'followed' && status !== 'skipped') {
+    return res.status(400).json({ message: 'status must be followed or skipped' });
+  }
+
+  const assignment = await leadService.updateWorkerLeadStatus({
+    assignmentId,
+    accountIdOrSlug: account.trim(),
+    assignedDate: date,
+    status,
+  });
+  return res.status(200).json({ assignment });
 });
 
 export const assignLeads = catchAsync(async (req: Request, res: Response) => {
