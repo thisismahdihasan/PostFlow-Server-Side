@@ -199,8 +199,17 @@ export const assignLeadCandidates = async (params: {
 
   const now = new Date();
   const assignmentsToInsert: LeadAssignment[] = [];
+  const existingAssignments = await collection
+    .find({ targetAccountId, assignedDate }, { projection: { candidateId: 1, _id: 0 } })
+    .toArray();
+  const assignedCandidateIds = new Set(existingAssignments.map((assignment) => assignment.candidateId));
 
   for (const candidate of params.candidates) {
+    // Skip existing and request-local duplicates before allocating any quota slot.
+    if (assignedCandidateIds.has(candidate.candidateId)) {
+      continue;
+    }
+
     // If we've already filled generationTarget, stop assigning extra leads
     const currentTotal = existingNormalCount + existingReserveCount;
     if (currentTotal >= generationTarget) {
@@ -232,6 +241,7 @@ export const assignLeadCandidates = async (params: {
     };
 
     assignmentsToInsert.push(doc);
+    assignedCandidateIds.add(candidate.candidateId);
 
     if (slot.isReserve) {
       existingReserveCount++;
