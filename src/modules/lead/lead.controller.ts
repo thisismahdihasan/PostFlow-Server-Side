@@ -98,7 +98,15 @@ export const getMyActivity = catchAsync(async (req: Request, res: Response) => {
   const user = await checkApprovedUser(uid);
   if (!user) return res.status(403).json({ message: 'Forbidden' });
 
-  // Personal reports have no client-selected actor, account, or date filters.
+  const { from, to } = req.query;
+  if (from !== undefined || to !== undefined) {
+    if (!isValidLeadDate(from) || !isValidLeadDate(to) || from > to) {
+      return res.status(400).json({ message: 'from and to must be valid YYYY-MM-DD dates with from <= to' });
+    }
+    return res.status(200).json(await leadService.getMyLeadActivityRange(uid, from, to));
+  }
+
+  // Preserve the original Today/Yesterday response for existing consumers.
   return res.status(200).json(await leadService.getMyLeadActivity(uid));
 });
 

@@ -59,6 +59,18 @@ export const getMyLeadActivity = async (firebaseUid: string, now: Date = new Dat
   };
 };
 
+export const getMyLeadActivityRange = async (firebaseUid: string, from: string, to: string) => {
+  const timezone = await getActivityTimezone();
+  const { start } = getDateRangeInTimezone(from, timezone);
+  const { end } = getDateRangeInTimezone(to, timezone);
+  const { followed, skipped } = await getProcessingActivity({
+    processedByFirebaseUid: firebaseUid,
+    processedAt: { $gte: start, $lt: end },
+    isReserve: { $ne: true },
+  });
+  return { timezone, from, to, followed, skipped };
+};
+
 export const getLeadActivitySummary = async (accountIdOrSlug: string, date: string) => {
   const account = await resolveAccount(accountIdOrSlug);
   if (!account) throw Object.assign(new Error('Account not found'), { statusCode: 404 });
