@@ -120,6 +120,7 @@ export const updateLeadStatus = catchAsync(async (req: Request, res: Response) =
     accountIdOrSlug: account.trim(),
     assignedDate: date,
     status,
+    processedByFirebaseUid: uid,
   });
   return res.status(200).json({ assignment });
 });

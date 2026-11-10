@@ -18,6 +18,8 @@ export interface LeadAssignment {
   metadata?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
+  processedByFirebaseUid?: string;
+  processedAt?: Date;
 }
 
 export interface WorkerVisibleLead extends LeadAssignment {

@@ -194,6 +194,7 @@ export const updateWorkerLeadStatus = async (params: {
   accountIdOrSlug: string;
   assignedDate: string;
   status: 'followed' | 'skipped';
+  processedByFirebaseUid: string;
 }): Promise<LeadAssignment> => {
   const account = await resolveAccount(params.accountIdOrSlug);
   if (!account) {
@@ -212,7 +213,12 @@ export const updateWorkerLeadStatus = async (params: {
 
   const updated = await collection.findOneAndUpdate(
     { ...eligibleAssignment, status: 'pending' },
-    { $set: { status: params.status, updatedAt: now } },
+    { $set: {
+      status: params.status,
+      processedByFirebaseUid: params.processedByFirebaseUid,
+      processedAt: now,
+      updatedAt: now,
+    } },
     { returnDocument: 'after' }
   );
   if (updated) return updated;
