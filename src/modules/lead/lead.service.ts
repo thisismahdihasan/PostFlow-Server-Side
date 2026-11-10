@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { Filter, ObjectId } from 'mongodb';
 import { getDB } from '../../config/db';
 import { getPlatformSettings } from '../platformSettings/platformSettings.service';
 import { DEFAULT_ACCOUNT_LEAD_FINDER, Account } from '../account/account.types';
@@ -123,8 +123,10 @@ export const getDailyLeadQuotaSummary = async (
 export const getWorkerVisibleLeads = async (
   accountIdOrSlug: string,
   assignedDate?: string,
+  page: number = 1,
+  limit: number = 10,
   currentTime: Date = new Date()
-): Promise<WorkerVisibleLead[]> => {
+): Promise<{ leads: WorkerVisibleLead[]; totalCount: number }> => {
   const account = await resolveAccount(accountIdOrSlug);
   if (!account) {
     throw new Error(`Account not found: ${accountIdOrSlug}`);
@@ -140,18 +142,23 @@ export const getWorkerVisibleLeads = async (
     dateFilter = { $lte: getCurrentDateInTimezone(timezone, currentTime) };
   }
 
-  const assignments = await collection
-    .find({
-      targetAccountId: account._id!,
-      assignedDate: dateFilter,
-      status: 'pending',
-      isReserve: { $ne: true }, // NEVER return reserve leads
-      availableAt: { $lte: currentTime }, // ONLY availableAt <= currentTime
-    })
-    .sort(assignedDate === undefined
-      ? { assignedDate: 1, availableAt: 1, createdAt: 1, _id: 1 }
-      : { availableAt: 1, batchIndex: 1, createdAt: 1 })
-    .toArray();
+  const filter: Filter<LeadAssignment> = {
+    targetAccountId: account._id!,
+    assignedDate: dateFilter,
+    status: 'pending',
+    isReserve: { $ne: true }, // NEVER return reserve leads
+    availableAt: { $lte: currentTime }, // ONLY availableAt <= currentTime
+  };
+  const [assignments, totalCount] = await Promise.all([
+    collection.find(filter)
+      .sort(assignedDate === undefined
+        ? { assignedDate: 1, availableAt: 1, createdAt: 1, _id: 1 }
+        : { availableAt: 1, batchIndex: 1, createdAt: 1, _id: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+    collection.countDocuments(filter),
+  ]);
 
   const candidateIds = new Map<string, ObjectId>();
   for (const assignment of assignments) {
@@ -160,7 +167,7 @@ export const getWorkerVisibleLeads = async (
       candidateIds.set(id.toHexString(), id);
     }
   }
-  if (candidateIds.size === 0) return assignments;
+  if (candidateIds.size === 0) return { leads: assignments, totalCount };
 
   const candidates = await getDB().collection<LeadCandidate>('leadCandidates')
     .find(
@@ -170,7 +177,7 @@ export const getWorkerVisibleLeads = async (
     .toArray();
   const images = new Map(candidates.map((candidate) => [candidate._id.toHexString(), candidate.profilePicUrl]));
 
-  return assignments.map((assignment) => {
+  const leads = assignments.map((assignment) => {
     const profilePicUrl = typeof assignment.candidateId === 'string'
       ? images.get(assignment.candidateId.toLowerCase())
       : undefined;
@@ -178,6 +185,7 @@ export const getWorkerVisibleLeads = async (
       ? { ...assignment, profilePicUrl }
       : assignment;
   });
+  return { leads, totalCount };
 };
 
 /** Process one released assignment without changing its quota or release slot. */

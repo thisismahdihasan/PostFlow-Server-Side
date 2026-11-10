@@ -56,7 +56,7 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
   const user = await checkApprovedUser(uid);
   if (!user) return res.status(403).json({ message: 'Forbidden' });
 
-  const { account, date } = req.query;
+  const { account, date, page: pageQuery, limit: limitQuery } = req.query;
 
   if (typeof account !== 'string' || !account.trim()) {
     return res.status(400).json({ message: 'query param account is required' });
@@ -66,13 +66,23 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
     return res.status(400).json({ message: 'query param date is required in YYYY-MM-DD format' });
   }
 
+  const page = pageQuery === undefined ? 1
+    : typeof pageQuery === 'string' && /^\d+$/.test(pageQuery) ? Number(pageQuery) : NaN;
+  const limit = limitQuery === undefined ? 10
+    : typeof limitQuery === 'string' && /^\d+$/.test(limitQuery) ? Number(limitQuery) : NaN;
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100
+    || !Number.isSafeInteger((page - 1) * limit)) {
+    return res.status(400).json({ message: 'page must be a positive integer and limit must be an integer from 1 to 100' });
+  }
+
   try {
-    const leads = await leadService.getWorkerVisibleLeads(account.trim(), date);
+    const { leads, totalCount } = await leadService.getWorkerVisibleLeads(account.trim(), date, page, limit);
     return res.status(200).json({
       account,
       date,
       count: leads.length,
       leads,
+      pagination: { page, limit, totalCount, totalPages: Math.ceil(totalCount / limit) },
     });
   } catch (err: any) {
     if (err.message?.includes('Account not found')) {
