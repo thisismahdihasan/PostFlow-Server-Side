@@ -386,13 +386,14 @@ export const assignLeadCandidates = async (params: {
 
   const now = new Date();
   const assignmentsToInsert: LeadAssignment[] = [];
+  const submittedCandidateIds = [...new Set(params.candidates.map((candidate) => candidate.candidateId))];
   const existingAssignments = await collection
-    .find({ targetAccountId, assignedDate }, { projection: { candidateId: 1, _id: 0 } })
+    .find({ targetAccountId, candidateId: { $in: submittedCandidateIds } }, { projection: { candidateId: 1, _id: 0 } })
     .toArray();
   const assignedCandidateIds = new Set(existingAssignments.map((assignment) => assignment.candidateId));
 
   for (const candidate of params.candidates) {
-    // Skip existing and request-local duplicates before allocating any quota slot.
+    // Skip lifetime same-account and request-local duplicates before allocating any quota slot.
     if (assignedCandidateIds.has(candidate.candidateId)) {
       continue;
     }
