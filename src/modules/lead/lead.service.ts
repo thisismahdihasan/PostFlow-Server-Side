@@ -340,14 +340,22 @@ export const assignLeadCandidates = async (params: {
     throw new Error(`Account not found: ${params.accountIdOrSlug}`);
   }
 
-  const targetAccountId = account._id!;
-  const assignedDate = params.assignedDate;
-  const collection = getCollection();
+  if (account.isActive !== true) {
+    throw Object.assign(new Error('Account is inactive'), { statusCode: 409 });
+  }
 
   const accountLf = {
     ...DEFAULT_ACCOUNT_LEAD_FINDER,
     ...(account.leadFinder || {}),
   };
+
+  if (accountLf.enabled !== true) {
+    throw Object.assign(new Error('Lead Finder is disabled for this account'), { statusCode: 409 });
+  }
+
+  const targetAccountId = account._id!;
+  const assignedDate = params.assignedDate;
+  const collection = getCollection();
 
   const platformSettings = await getPlatformSettings();
   const bufferPercent = platformSettings.leadFinder?.leadBufferPercent ?? 0;
