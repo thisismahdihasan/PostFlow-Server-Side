@@ -98,12 +98,15 @@ export const getMyActivity = catchAsync(async (req: Request, res: Response) => {
   const user = await checkApprovedUser(uid);
   if (!user) return res.status(403).json({ message: 'Forbidden' });
 
-  const { from, to } = req.query;
-  if (from !== undefined || to !== undefined) {
+  const { account, from, to } = req.query;
+  if (account !== undefined && (typeof account !== 'string' || !account.trim())) {
+    return res.status(400).json({ message: 'account must be a single nonempty string' });
+  }
+  if (account !== undefined || from !== undefined || to !== undefined) {
     if (!isValidLeadDate(from) || !isValidLeadDate(to) || from > to) {
       return res.status(400).json({ message: 'from and to must be valid YYYY-MM-DD dates with from <= to' });
     }
-    return res.status(200).json(await leadService.getMyLeadActivityRange(uid, from, to));
+    return res.status(200).json(await leadService.getMyLeadActivityRange(uid, from, to, account?.trim()));
   }
 
   // Preserve the original Today/Yesterday response for existing consumers.
