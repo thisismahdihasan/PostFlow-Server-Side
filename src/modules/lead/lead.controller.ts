@@ -62,7 +62,7 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
     return res.status(400).json({ message: 'query param account is required' });
   }
 
-  if (!isValidLeadDate(date)) {
+  if (date !== undefined && !isValidLeadDate(date)) {
     return res.status(400).json({ message: 'query param date is required in YYYY-MM-DD format' });
   }
 

@@ -20,6 +20,10 @@ export interface LeadAssignment {
   updatedAt: Date;
 }
 
+export interface WorkerVisibleLead extends LeadAssignment {
+  profilePicUrl?: string;
+}
+
 export interface ReleaseBatchInfo {
   batchIndex: number;
   size: number;

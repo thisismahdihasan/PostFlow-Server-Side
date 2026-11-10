@@ -2,8 +2,10 @@ import { ObjectId } from 'mongodb';
 import { getDB } from '../../config/db';
 import { getPlatformSettings } from '../platformSettings/platformSettings.service';
 import { DEFAULT_ACCOUNT_LEAD_FINDER, Account } from '../account/account.types';
+import { LeadCandidate } from '../leadCandidate/leadCandidate.types';
 import {
   LeadAssignment,
+  WorkerVisibleLead,
   LeadQuotaSummary,
   AssignCandidateInput,
   AccountDemandItem,
@@ -120,26 +122,62 @@ export const getDailyLeadQuotaSummary = async (
  */
 export const getWorkerVisibleLeads = async (
   accountIdOrSlug: string,
-  assignedDate: string,
+  assignedDate?: string,
   currentTime: Date = new Date()
-): Promise<LeadAssignment[]> => {
+): Promise<WorkerVisibleLead[]> => {
   const account = await resolveAccount(accountIdOrSlug);
   if (!account) {
     throw new Error(`Account not found: ${accountIdOrSlug}`);
   }
 
   const collection = getCollection();
+  let dateFilter: string | { $lte: string };
+  if (assignedDate !== undefined) {
+    dateFilter = assignedDate;
+  } else {
+    const settings = await getPlatformSettings();
+    const timezone = settings.leadFinder?.timezone?.trim() || 'Asia/Dhaka';
+    dateFilter = { $lte: getCurrentDateInTimezone(timezone, currentTime) };
+  }
 
-  return await collection
+  const assignments = await collection
     .find({
       targetAccountId: account._id!,
-      assignedDate,
+      assignedDate: dateFilter,
       status: 'pending',
       isReserve: { $ne: true }, // NEVER return reserve leads
       availableAt: { $lte: currentTime }, // ONLY availableAt <= currentTime
     })
-    .sort({ availableAt: 1, batchIndex: 1, createdAt: 1 })
+    .sort(assignedDate === undefined
+      ? { assignedDate: 1, availableAt: 1, createdAt: 1, _id: 1 }
+      : { availableAt: 1, batchIndex: 1, createdAt: 1 })
     .toArray();
+
+  const candidateIds = new Map<string, ObjectId>();
+  for (const assignment of assignments) {
+    if (typeof assignment.candidateId === 'string' && ObjectId.isValid(assignment.candidateId)) {
+      const id = new ObjectId(assignment.candidateId);
+      candidateIds.set(id.toHexString(), id);
+    }
+  }
+  if (candidateIds.size === 0) return assignments;
+
+  const candidates = await getDB().collection<LeadCandidate>('leadCandidates')
+    .find(
+      { _id: { $in: [...candidateIds.values()] } },
+      { projection: { _id: 1, profilePicUrl: 1 } }
+    )
+    .toArray();
+  const images = new Map(candidates.map((candidate) => [candidate._id.toHexString(), candidate.profilePicUrl]));
+
+  return assignments.map((assignment) => {
+    const profilePicUrl = typeof assignment.candidateId === 'string'
+      ? images.get(assignment.candidateId.toLowerCase())
+      : undefined;
+    return typeof profilePicUrl === 'string' && profilePicUrl.trim()
+      ? { ...assignment, profilePicUrl }
+      : assignment;
+  });
 };
 
 /** Process one released assignment without changing its quota or release slot. */
