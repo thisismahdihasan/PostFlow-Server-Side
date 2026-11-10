@@ -13,6 +13,7 @@ import {
   ProcessingActivityCounts,
   AssignmentCohortCounts,
   LeadAssignmentStatus,
+  SavedQualifiedCandidatesResult,
 } from './lead.types';
 import {
   calculateGenerationTarget,
@@ -199,6 +200,69 @@ export const getDailyLeadQuotaSummary = async (
     remainingNormalNeed: quota.remainingNormalNeed,
     remainingGenerationNeed: quota.remainingGenerationNeed,
     releaseBatches,
+  };
+};
+
+export const getSavedQualifiedCandidates = async (
+  accountIdOrSlug: string,
+  assignedDate: string
+): Promise<SavedQualifiedCandidatesResult> => {
+  const account = await resolveAccount(accountIdOrSlug);
+  if (!account) {
+    throw Object.assign(new Error(`Account not found: ${accountIdOrSlug}`), { statusCode: 404 });
+  }
+  if (account.isActive !== true) {
+    throw Object.assign(new Error('Account is inactive'), { statusCode: 409 });
+  }
+
+  const accountLf = {
+    ...DEFAULT_ACCOUNT_LEAD_FINDER,
+    ...(account.leadFinder || {}),
+  };
+  if (accountLf.enabled !== true) {
+    throw Object.assign(new Error('Lead Finder is disabled for this account'), { statusCode: 409 });
+  }
+
+  const quota = await getDailyLeadQuotaSummary(account._id!.toString(), assignedDate);
+  if (quota.remainingGenerationNeed === 0) {
+    return {
+      account: account.slug,
+      date: assignedDate,
+      remainingGenerationNeed: 0,
+      candidates: [],
+    };
+  }
+
+  const assignedCandidateRows = await getCollection()
+    .find({ targetAccountId: account._id! }, { projection: { candidateId: 1, _id: 0 } })
+    .toArray();
+  const assignedCandidateObjectIds = [...new Set(assignedCandidateRows.map((row) => row.candidateId))]
+    .filter((candidateId) => ObjectId.isValid(candidateId))
+    .map((candidateId) => new ObjectId(candidateId));
+
+  const candidates = await getDB()
+    .collection<LeadCandidate>('leadCandidates')
+    .find(
+      {
+        enrichmentStatus: 'completed',
+        qualificationStatus: 'qualified',
+        ...(assignedCandidateObjectIds.length > 0 ? { _id: { $nin: assignedCandidateObjectIds } } : {}),
+      },
+      { projection: { _id: 1, username: 1 } }
+    )
+    .sort({ createdAt: 1, _id: 1 })
+    .limit(quota.remainingGenerationNeed)
+    .toArray();
+
+  return {
+    account: account.slug,
+    date: assignedDate,
+    remainingGenerationNeed: quota.remainingGenerationNeed,
+    candidates: candidates.flatMap((candidate) =>
+      candidate._id
+        ? [{ candidateId: candidate._id.toString(), candidateUsername: candidate.username, source: 'auto' }]
+        : []
+    ),
   };
 };
 

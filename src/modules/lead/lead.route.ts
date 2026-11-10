@@ -8,6 +8,7 @@ import {
   assignLeads,
   getAllAssignments,
   internalGetQuotaSummary,
+  internalGetSavedCandidates,
   internalAssignLeads,
   getDailyDemand,
   getMyActivity,
@@ -31,6 +32,7 @@ export default router;
 const internalRouter = Router();
 internalRouter.get('/daily-demand', verifyInternalApiKey, getDailyDemand);
 internalRouter.get('/quota-summary', verifyInternalApiKey, internalGetQuotaSummary);
+internalRouter.get('/saved-candidates', verifyInternalApiKey, internalGetSavedCandidates);
 internalRouter.post('/assign', verifyInternalApiKey, internalAssignLeads);
 
 export const internalLeadRouter = internalRouter;

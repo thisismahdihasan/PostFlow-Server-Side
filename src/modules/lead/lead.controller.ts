@@ -246,6 +246,18 @@ export const internalGetQuotaSummary = catchAsync(async (req: Request, res: Resp
   return res.status(200).json(summary);
 });
 
+export const internalGetSavedCandidates = catchAsync(async (req: Request, res: Response) => {
+  const account = typeof req.query.account === 'string' ? req.query.account.trim() : '';
+  const date = req.query.date;
+
+  if (!account || !isValidLeadDate(date)) {
+    return res.status(400).json({ message: 'Valid account and date query params are required' });
+  }
+
+  const result = await leadService.getSavedQualifiedCandidates(account, date);
+  return res.status(200).json(result);
+});
+
 export const internalAssignLeads = catchAsync(async (req: Request, res: Response) => {
   const { account, date, candidates, anchorTime } = req.body;
 

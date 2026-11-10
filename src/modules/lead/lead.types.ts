@@ -69,6 +69,19 @@ export interface AssignCandidateInput {
   metadata?: Record<string, any>;
 }
 
+export interface SavedQualifiedCandidate {
+  candidateId: string;
+  candidateUsername: string;
+  source: 'auto';
+}
+
+export interface SavedQualifiedCandidatesResult {
+  account: string;
+  date: string;
+  remainingGenerationNeed: number;
+  candidates: SavedQualifiedCandidate[];
+}
+
 export interface AccountDemandItem {
   targetAccountId: string;
   accountSlug: string;
