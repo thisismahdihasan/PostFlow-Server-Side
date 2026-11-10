@@ -44,6 +44,38 @@ export const getCurrentDateInTimezone = (
   return `${year}-${month}-${day}`;
 };
 
+/** UTC bounds of a calendar date, including short/long DST days and midnight transitions. */
+export const getDateRangeInTimezone = (date: string, timeZone: string): { start: Date; end: Date } => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone, era: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const midnight = new Date(`${date}T00:00:00.000Z`);
+  const nextDate = new Date(midnight);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+
+  const boundary = (calendarDate: Date): Date => {
+    const target = calendarDate.getUTCFullYear() * 10000
+      + (calendarDate.getUTCMonth() + 1) * 100 + calendarDate.getUTCDate();
+    // Search for the first instant of the local date rather than assuming a 24-hour day.
+    let lower = calendarDate.getTime() - 48 * 60 * 60 * 1000;
+    let upper = calendarDate.getTime() + 48 * 60 * 60 * 1000;
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2);
+      const parts = formatter.formatToParts(new Date(middle));
+      const year = Number(parts.find((part) => part.type === 'year')?.value);
+      const signedYear = parts.find((part) => part.type === 'era')?.value === 'BC' ? 1 - year : year;
+      const value = signedYear * 10000
+        + Number(parts.find((part) => part.type === 'month')?.value) * 100
+        + Number(parts.find((part) => part.type === 'day')?.value);
+      if (value < target) lower = middle + 1;
+      else upper = middle;
+    }
+    return new Date(lower);
+  };
+
+  return { start: boundary(midnight), end: boundary(nextDate) };
+};
+
 export const getCurrentTimeInTimezone = (
   timeZone: string,
   date: Date = new Date()

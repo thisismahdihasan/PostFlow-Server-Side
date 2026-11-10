@@ -26,6 +26,20 @@ export interface WorkerVisibleLead extends LeadAssignment {
   profilePicUrl?: string;
 }
 
+export interface ProcessingActivityCounts {
+  followed: number;
+  skipped: number;
+  completed: number;
+}
+
+export interface AssignmentCohortCounts {
+  assigned: number;
+  pending: number;
+  followed: number;
+  skipped: number;
+  rejected: number;
+}
+
 export interface ReleaseBatchInfo {
   batchIndex: number;
   size: number;

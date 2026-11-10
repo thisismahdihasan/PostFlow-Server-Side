@@ -10,6 +10,8 @@ import {
   internalGetQuotaSummary,
   internalAssignLeads,
   getDailyDemand,
+  getMyActivity,
+  getActivitySummary,
 } from './lead.controller';
 
 const router = Router();
@@ -17,6 +19,8 @@ const router = Router();
 // User / Worker / Admin routes (authenticated)
 router.get('/quota-summary', verifyFirebaseToken, getQuotaSummary);
 router.get('/visible', verifyFirebaseToken, getVisibleLeads);
+router.get('/my-activity', verifyFirebaseToken, getMyActivity);
+router.get('/activity-summary', verifyFirebaseToken, getActivitySummary);
 router.patch('/:assignmentId/status', verifyFirebaseToken, updateLeadStatus);
 router.get('/all', verifyFirebaseToken, getAllAssignments);
 router.post('/assign', verifyFirebaseToken, assignLeads);

@@ -92,6 +92,33 @@ export const getVisibleLeads = catchAsync(async (req: Request, res: Response) =>
   }
 });
 
+export const getMyActivity = catchAsync(async (req: Request, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized' });
+  const user = await checkApprovedUser(uid);
+  if (!user) return res.status(403).json({ message: 'Forbidden' });
+
+  // Personal reports have no client-selected actor, account, or date filters.
+  return res.status(200).json(await leadService.getMyLeadActivity(uid));
+});
+
+export const getActivitySummary = catchAsync(async (req: Request, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized' });
+  const user = await checkApprovedUser(uid);
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: Admin only' });
+  }
+  const { account, date } = req.query;
+  if (typeof account !== 'string' || !account.trim()) {
+    return res.status(400).json({ message: 'query param account is required' });
+  }
+  if (!isValidLeadDate(date)) {
+    return res.status(400).json({ message: 'query param date is required in YYYY-MM-DD format' });
+  }
+  return res.status(200).json(await leadService.getLeadActivitySummary(account.trim(), date));
+});
+
 export const updateLeadStatus = catchAsync(async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized' });

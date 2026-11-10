@@ -140,6 +140,9 @@ export const initializeDatabase = async (): Promise<Db> => {
       await db.collection('leadAssignments').createIndex({ targetAccountId: 1, assignedDate: 1, isReserve: 1 });
       await db.collection('leadAssignments').createIndex({ targetAccountId: 1, assignedDate: 1, availableAt: 1, isReserve: 1 });
       await db.collection('leadAssignments').createIndex({ status: 1, availableAt: 1 });
+      // Count-only activity reports by authenticated actor or target account and processing time.
+      await db.collection('leadAssignments').createIndex({ processedByFirebaseUid: 1, processedAt: 1 });
+      await db.collection('leadAssignments').createIndex({ targetAccountId: 1, processedAt: 1 });
       await db.collection('leadAssignments').createIndex(
         { targetAccountId: 1, candidateId: 1, assignedDate: 1 },
         {

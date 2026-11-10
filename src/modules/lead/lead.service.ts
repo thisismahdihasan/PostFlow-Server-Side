@@ -10,6 +10,9 @@ import {
   AssignCandidateInput,
   AccountDemandItem,
   DailyDemandSummary,
+  ProcessingActivityCounts,
+  AssignmentCohortCounts,
+  LeadAssignmentStatus,
 } from './lead.types';
 import {
   calculateGenerationTarget,
@@ -17,9 +20,76 @@ import {
   calculateQuotaNeeds,
   computeLeadSlot,
 } from './lead.helper';
-import { getCurrentDateInTimezone } from '../../utils/timezone.helper';
+import { getCurrentDateInTimezone, getDateRangeInTimezone, isValidIanaTimezone } from '../../utils/timezone.helper';
 
 const getCollection = () => getDB().collection<LeadAssignment>('leadAssignments');
+
+const getActivityTimezone = async (): Promise<string> => {
+  const settings = await getPlatformSettings();
+  const timezone = settings.leadFinder?.timezone?.trim() || 'Asia/Dhaka';
+  return isValidIanaTimezone(timezone) ? timezone : 'Asia/Dhaka';
+};
+
+const getProcessingActivity = async (filter: Filter<LeadAssignment>): Promise<ProcessingActivityCounts> => {
+  const counts = await getCollection().aggregate<{ _id: 'followed' | 'skipped'; count: number }>([
+    { $match: { ...filter, status: { $in: ['followed', 'skipped'] } } },
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]).toArray();
+  const followed = counts.find((row) => row._id === 'followed')?.count || 0;
+  const skipped = counts.find((row) => row._id === 'skipped')?.count || 0;
+  return { followed, skipped, completed: followed + skipped };
+};
+
+export const getMyLeadActivity = async (firebaseUid: string, now: Date = new Date()) => {
+  const timezone = await getActivityTimezone();
+  const today = getCurrentDateInTimezone(timezone, now);
+  const previousDate = new Date(`${today}T00:00:00.000Z`);
+  previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+  const yesterday = previousDate.toISOString().slice(0, 10);
+  const todayRange = getDateRangeInTimezone(today, timezone);
+  const yesterdayRange = getDateRangeInTimezone(yesterday, timezone);
+  const [todayActivity, yesterdayActivity] = await Promise.all([
+    getProcessingActivity({ processedByFirebaseUid: firebaseUid, processedAt: { $gte: todayRange.start, $lt: todayRange.end } }),
+    getProcessingActivity({ processedByFirebaseUid: firebaseUid, processedAt: { $gte: yesterdayRange.start, $lt: yesterdayRange.end } }),
+  ]);
+  return {
+    timezone,
+    today: { date: today, ...todayActivity },
+    yesterday: { date: yesterday, ...yesterdayActivity },
+  };
+};
+
+export const getLeadActivitySummary = async (accountIdOrSlug: string, date: string) => {
+  const account = await resolveAccount(accountIdOrSlug);
+  if (!account) throw Object.assign(new Error('Account not found'), { statusCode: 404 });
+  const timezone = await getActivityTimezone();
+  const range = getDateRangeInTimezone(date, timezone);
+  const [cohortRows, processingActivity] = await Promise.all([
+    getCollection().aggregate<{ _id: { status: LeadAssignmentStatus; reserve: boolean }; count: number }>([
+      { $match: { targetAccountId: account._id!, assignedDate: date } },
+      { $group: { _id: { status: '$status', reserve: { $eq: ['$isReserve', true] } }, count: { $sum: 1 } } },
+    ]).toArray(),
+    getProcessingActivity({ targetAccountId: account._id!, processedAt: { $gte: range.start, $lt: range.end } }),
+  ]);
+  const normal: AssignmentCohortCounts = { assigned: 0, pending: 0, followed: 0, skipped: 0, rejected: 0 };
+  const reserve: AssignmentCohortCounts = { ...normal };
+  for (const row of cohortRows) {
+    const counts = row._id.reserve ? reserve : normal;
+    counts.assigned += row.count;
+    if (row._id.status === 'pending' || row._id.status === 'followed'
+      || row._id.status === 'skipped' || row._id.status === 'rejected') {
+      counts[row._id.status] += row.count;
+    }
+  }
+  return {
+    account: account.slug,
+    date,
+    timezone,
+    // Current statuses, including locked assignments; not an availability count or daily snapshot.
+    assignmentCohort: { normal, reserve },
+    processingActivity,
+  };
+};
 
 /**
  * Resolve target account dynamically by ObjectId or unique slug.
